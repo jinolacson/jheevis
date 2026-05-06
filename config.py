@@ -18,7 +18,7 @@ LLM_TOP_P = 0.9
 
 # Text-to-Speech (MeloTTS)
 TTS_LANGUAGE = "EN"  # Options: EN, EN_US, EN_AU, EN_NEWEST, etc.
-TTS_SPEAKER = "EN-BR"  # EN-BR for British accent (JARVIS-like), or EN-US for American
+TTS_SPEAKER = "EN-US"  # EN-BR for British accent (JARVIS-like), or EN-US for American
 TTS_SPEED = 0.9  # 0.9 = slower, more sophisticated like JARVIS (0.8-1.2 range)
 TTS_SAMPLE_RATE = 44100
 
@@ -113,3 +113,12 @@ ENABLE_DESKTOP_CONTROL = True
 ENABLE_SCREEN_UNDERSTANDING = True
 ENABLE_VOICE_FEEDBACK = False  # Disabled - no beep sound
 ENABLE_TTS = True  # Disable for text-only mode
+
+
+# =========================
+# ARC REACTOR UI
+# =========================
+
+ENABLE_ARC_REACTOR = True  # Show Arc Reactor UI (JARVIS-style visual indicator)
+ARC_REACTOR_SIZE = 300  # Window size in pixels
+ARC_REACTOR_POSITION = "bottom-right"  # Position on screen

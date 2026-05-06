@@ -30,6 +30,11 @@ from desktop.actions import ActionExecutor
 from tts.synthesizer import TTSSynthesizer
 from utils.audio import play_beep
 
+# Arc Reactor UI
+if config.ENABLE_ARC_REACTOR:
+    from PyQt6.QtWidgets import QApplication
+    from arc_reactor import ArcReactorUI
+
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, config.LOG_LEVEL),
@@ -86,6 +91,21 @@ class JheevisClient:
         # Text-to-Speech (MeloTTS for natural JARVIS-like voice)
         self.tts = TTSSynthesizer(use_melo=True)
         
+        # Arc Reactor UI
+        self.reactor_ui = None
+        if config.ENABLE_ARC_REACTOR:
+            try:
+                self.qt_app = QApplication.instance()
+                if self.qt_app is None:
+                    self.qt_app = QApplication([])
+                
+                self.reactor_ui = ArcReactorUI(size=config.ARC_REACTOR_SIZE)
+                self.reactor_ui.show()
+                logger.info("✓ Arc Reactor UI initialized")
+            except Exception as e:
+                logger.warning(f"Arc Reactor UI failed to load: {e}")
+                self.reactor_ui = None
+        
         # State
         self.is_awake = not config.ENABLE_WAKE_WORD  # If no wake word, always awake
         self.should_stop = False
@@ -104,16 +124,36 @@ class JheevisClient:
             logger.info("Wake word disabled - always listening")
             self.speak("Good morning, sir. All systems operational. How may I assist you today?")
         
+        # Set reactor to idle state
+        if self.reactor_ui:
+            self.reactor_ui.set_state('idle')
+        
+        # Define frame callback to process Qt events
+        def process_qt_events(frame, is_speech):
+            """Process Qt events on each audio frame"""
+            if self.reactor_ui and hasattr(self, 'qt_app') and self.qt_app:
+                self.qt_app.processEvents()
+        
         # Start VAD loop
-        self.vad.start_listening(
-            on_speech_start=self._on_speech_start,
-            on_speech_end=self._on_speech_end
-        )
+        try:
+            self.vad.start_listening(
+                on_speech_start=self._on_speech_start,
+                on_speech_end=self._on_speech_end,
+                on_frame=process_qt_events
+            )
+        except KeyboardInterrupt:
+            logger.info("\n👋 Shutting down...")
+        finally:
+            if self.reactor_ui:
+                self.reactor_ui.close()
     
     def _on_speech_start(self):
         """Callback when speech is detected."""
         if self.state == State.IDLE:
             self.state = State.LISTENING
+            
+            if self.reactor_ui:
+                self.reactor_ui.set_state('listening')
             
             print("🎤 Listening...")  # Visual feedback for user
             
@@ -129,6 +169,9 @@ class JheevisClient:
         print("🔄 Processing...")  # Visual feedback for user
         
         self.state = State.PROCESSING
+        if self.reactor_ui:
+            self.reactor_ui.set_state('processing')
+        
         logger.debug("🔄 Processing...")
         
         try:
@@ -168,12 +211,18 @@ class JheevisClient:
         
         except Exception as e:
             logger.error(f"Error processing speech: {e}", exc_info=True)
+            if self.reactor_ui:
+                self.reactor_ui.set_state('error')
+                import time
+                time.sleep(1)  # Show error state briefly
             self.speak("Sorry, I encountered an error.")
             self.state = State.ERROR
         
         finally:
             # Reset to idle
             self.state = State.IDLE
+            if self.reactor_ui:
+                self.reactor_ui.set_state('idle')
     
     def _process_command(self, text: str):
         """
@@ -506,11 +555,16 @@ class JheevisClient:
             return
         
         self.state = State.SPEAKING
+        if self.reactor_ui:
+            self.reactor_ui.set_state('speaking')
+        
         logger.debug(f"🔊 Speaking: '{text}'")
         
         self.tts.speak(text)
         
         self.state = State.IDLE
+        if self.reactor_ui:
+            self.reactor_ui.set_state('idle')
     
     def stop(self):
         """Stop the assistant."""

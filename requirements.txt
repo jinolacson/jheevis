@@ -39,6 +39,9 @@ pillow>=10.0.0
 git+https://github.com/myshell-ai/MeloTTS.git
 nltk>=3.9.0  # Note: After install, run: python -m nltk.downloader averaged_perceptron_tagger_eng cmudict
 
+# Arc Reactor UI
+PyQt6>=6.6.0
+
 # Optional for TTS (MeloTTS dependencies)
 mecab-python3>=1.0.6
 unidic-lite>=1.0.8
