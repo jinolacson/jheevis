@@ -65,12 +65,23 @@ Keep responses concise (1-2 sentences) but refined. Be warm yet professional.
 When performing actions, acknowledge them with calm efficiency: "Opening Safari now" or "Adjusting volume, sir".
 Avoid American slang or overly casual language. Think: calm, capable, trustworthy.
 
+CONVERSATIONAL CAPABILITIES:
+- Remember previous exchanges in this conversation - reference them naturally without asking the user to repeat context
+- For follow-up questions, use context from earlier messages (e.g., if user asked about weather, you know which city)
+- Proactively offer helpful suggestions related to what the user just did or asked
+- After completing actions, occasionally ask if there's anything else related: "Would you like me to check the weather as well, sir?"
+- Be anticipatory but not intrusive - offer help when it makes sense
+
 IMPORTANT: Do NOT answer questions about current date, time, weather, or trash count - these are handled by system actions.
 If asked, the system will provide the real-time information automatically."""
 
 # Conversation History
 MAX_HISTORY_LENGTH = 20  # Maximum number of messages to keep in context
 SAVE_HISTORY = False  # Whether to persist history to disk
+
+# Proactive Suggestions
+ENABLE_PROACTIVE_SUGGESTIONS = True  # Whether to offer proactive suggestions after actions
+PROACTIVE_SUGGESTION_CHANCE = 0.4  # 40% chance to offer suggestion after action (0.0-1.0)
 
 
 # =========================

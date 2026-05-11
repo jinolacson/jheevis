@@ -33,15 +33,13 @@ class ArcReactorUI(QWidget):
     def init_ui(self):
         """Initialize the UI window"""
         # Frameless, transparent, always on top
-        # Removed Tool flag to prevent hiding when clicking other windows
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.WindowDoesNotAcceptFocus
+            Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         
         # Set size
         self.setFixedSize(self.size, self.size)
@@ -132,37 +130,25 @@ class ArcReactorUI(QWidget):
         painter.drawEllipse(center, 18, 18)
     
     def draw_speaking(self, painter):
-        """Pulsing with speech (talking) - JARVIS-style with expanding rings and rotation"""
+        """Pulsing with speech (talking)"""
         center = self.rect().center()
         pulse = abs(self.pulse_value)
         
         # Fast pulse
         large_pulse = 0.7 + (pulse * 0.3)
         
-        # Expanding sound wave rings (like ripples from speaking)
-        for i in range(4):
-            offset = (self.rotation * 1.5 + i * 30) % 120
-            radius = 50 + offset
-            alpha = 1.0 - (offset / 120)
-            
-            self.draw_glow(painter, center, radius, alpha * 0.6, (110, 230, 255))
+        # Outer ring - expands with speech
+        self.draw_glow(painter, center, 100, large_pulse * 0.7, (110, 220, 255))
         
-        # Rotating energy arcs (shows active processing/speaking)
-        for i in range(8):
-            angle = (self.rotation * 2 + i * 45) % 360
-            self.draw_arc_segment(painter, center, 80, angle, 30, (120, 240, 255))
+        # Middle pulse
+        self.draw_glow(painter, center, 70, large_pulse * 0.9, (130, 230, 255))
         
-        # Pulsing middle layer
-        self.draw_glow(painter, center, 60, large_pulse * 0.9, (130, 235, 255))
+        # Core - bright and active
+        self.draw_glow(painter, center, 35, large_pulse, (160, 240, 255))
         
-        # Core - bright and active with strong pulse
-        core_pulse = 0.8 + (pulse * 0.2)
-        self.draw_glow(painter, center, 35, core_pulse, (160, 245, 255))
-        
-        # Bright center dot
-        painter.setBrush(QColor(230, 250, 255, int(255 * large_pulse)))
+        painter.setBrush(QColor(220, 250, 255, int(255 * large_pulse)))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(center, int(22 * core_pulse), int(22 * core_pulse))
+        painter.drawEllipse(center, 20, 20)
     
     def draw_error(self, painter):
         """Red pulse (error state)"""
@@ -179,7 +165,9 @@ class ArcReactorUI(QWidget):
     
     def draw_glow(self, painter, center, radius, intensity, color):
         """Draw a radial glow effect"""
-        gradient = QRadialGradient(QPointF(center), radius)
+        # Convert QPoint to QPointF for gradient
+        center_f = QPointF(center)
+        gradient = QRadialGradient(center_f, radius)
         r, g, b = color
         
         gradient.setColorAt(0, QColor(r, g, b, int(200 * intensity)))
@@ -224,9 +212,9 @@ class ArcReactorUI(QWidget):
             self.rotation += 5
         
         elif self.state == 'speaking':
-            # Fast pulse and rotation for energetic speaking animation
-            self.pulse_value = (math.sin(self.rotation * 0.2) + 1) / 2
-            self.rotation += 4
+            # Fast pulse
+            self.pulse_value = (math.sin(self.rotation * 0.15) + 1) / 2
+            self.rotation += 3
         
         elif self.state == 'error':
             # Urgent pulse

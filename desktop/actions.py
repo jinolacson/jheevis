@@ -14,6 +14,7 @@ from desktop.system_control import SystemController
 from desktop.file_search import FileSearcher
 from vision.camera import Camera
 from vision.detector import ObjectDetector
+from vision.scene_analyzer import SceneAnalyzer
 import config
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,8 @@ class ActionExecutor:
         self.files = FileSearcher()
         self.camera = Camera()
         self.detector = ObjectDetector(confidence=0.25)  # Lower confidence for better detection
-        logger.info("Action executor initialized")
+        self.scene_analyzer = SceneAnalyzer(self.detector)  # Enhanced scene understanding
+        logger.info("Action executor initialized with enhanced vision")
     
     def open_app(self, app_name: str) -> bool:
         """
@@ -686,7 +688,7 @@ class ActionExecutor:
     
     def what_do_you_see(self) -> Dict[str, Any]:
         """
-        Capture image and describe what's visible.
+        Capture image and describe what's visible with enhanced scene understanding.
         
         Returns:
             Dictionary with description and detections
@@ -694,7 +696,7 @@ class ActionExecutor:
         logger.info("Capturing image to see what's visible")
         
         try:
-            # Capture frame
+            # Capture multiple frames for better analysis
             frame = self.camera.capture_multiple_frames(num_frames=3)
             
             if frame is None:
@@ -704,18 +706,21 @@ class ActionExecutor:
                     'description': "I couldn't access the camera"
                 }
             
-            # Detect objects
-            description = self.detector.describe_scene(frame)
-            detections = self.detector.detect(frame)
+            # Use enhanced scene analyzer
+            context = self.scene_analyzer.analyze_scene(frame, use_history=True)
             
             result = {
                 'success': True,
-                'description': description,
-                'detections': detections,
-                'num_objects': len(detections)
+                'description': context.description,
+                'activity': context.activity,
+                'people_count': context.people_count,
+                'detections': context.objects,
+                'relationships': context.relationships,
+                'num_objects': len(context.objects),
+                'confidence': context.confidence
             }
             
-            logger.info(f"Vision result: {description}")
+            logger.info(f"Vision result: {context.description}")
             return result
         
         except Exception as e:
@@ -892,6 +897,89 @@ class ActionExecutor:
             return {
                 'success': False,
                 'message': "I encountered an error taking the picture"
+            }
+    
+    def get_activity_summary(self) -> Dict[str, Any]:
+        """
+        Get a summary of recent activity from scene analysis.
+        
+        Returns:
+            Dictionary with activity summary
+        """
+        logger.info("Getting activity summary")
+        
+        try:
+            summary = self.scene_analyzer.get_activity_summary()
+            
+            result = {
+                'success': True,
+                'summary': summary,
+                'message': summary
+            }
+            
+            logger.info(f"Activity summary: {summary}")
+            return result
+        
+        except Exception as e:
+            logger.error(f"Error getting activity summary: {e}")
+            return {
+                'success': False,
+                'message': "I don't have any activity history yet"
+            }
+    
+    def analyze_scene_detailed(self) -> Dict[str, Any]:
+        """
+        Perform detailed scene analysis with relationships and context.
+        
+        Returns:
+            Dictionary with comprehensive scene analysis
+        """
+        logger.info("Performing detailed scene analysis")
+        
+        try:
+            # Capture frame
+            frame = self.camera.capture_multiple_frames(num_frames=5)
+            
+            if frame is None:
+                return {
+                    'success': False,
+                    'message': "I couldn't access the camera"
+                }
+            
+            # Analyze scene with history
+            context = self.scene_analyzer.analyze_scene(frame, use_history=True)
+            
+            # Build detailed message
+            message = context.description
+            
+            # Add relationships if available
+            if context.relationships:
+                message += " Regarding spatial layout: " + ". ".join(context.relationships[:3]) + "."
+            
+            # Add activity insight
+            if context.activity not in ['idle', 'present']:
+                activity_name = context.activity.replace('_', ' ')
+                message += f" It appears you're {activity_name}."
+            
+            result = {
+                'success': True,
+                'message': message,
+                'description': context.description,
+                'activity': context.activity,
+                'people_count': context.people_count,
+                'relationships': context.relationships,
+                'num_objects': len(context.objects),
+                'confidence': context.confidence
+            }
+            
+            logger.info(f"Detailed analysis: {message}")
+            return result
+        
+        except Exception as e:
+            logger.error(f"Error in detailed scene analysis: {e}")
+            return {
+                'success': False,
+                'message': "I encountered an error analyzing the scene"
             }
     
     def _fuzzy_match_app(self, app_name: str) -> Optional[str]:

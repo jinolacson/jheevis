@@ -69,6 +69,10 @@ class ActionType(Enum):
     COUNT_PEOPLE = "count_people"
     DETECT_OBJECTS = "detect_objects"
     TAKE_PICTURE = "take_picture"
+    # Enhanced Vision
+    ANALYZE_SCENE = "analyze_scene"
+    WHAT_AM_I_DOING = "what_am_i_doing"
+    GET_ACTIVITY = "get_activity"
     UNKNOWN = "unknown"
 
 
@@ -139,6 +143,11 @@ class IntentClassifier:
     COUNT_PEOPLE_KEYWORDS = ["how many people", "count people", "how many persons", "number of people"]
     DETECT_OBJECTS_KEYWORDS = ["what objects", "detect objects", "what things", "identify objects"]
     TAKE_PICTURE_KEYWORDS = ["take picture", "take photo", "capture image", "take snapshot", "take a picture"]
+    
+    # Enhanced vision keywords
+    ANALYZE_SCENE_KEYWORDS = ["analyze scene", "analyse scene", "describe scene", "detailed scene", "what's happening", "analyze what", "describe what you see", "tell me everything"]
+    WHAT_DOING_KEYWORDS = ["what am i doing", "what's my activity", "what activity", "am i working", "am i eating", "what's my current activity"]
+    GET_ACTIVITY_KEYWORDS = ["activity summary", "recent activity", "what have i been doing", "my recent activity"]
     
     # Question keywords (usually conversational)
     QUESTION_KEYWORDS = ["what", "who", "where", "when", "why", "how", "tell me", "explain"]
@@ -292,6 +301,27 @@ class IntentClassifier:
             return Intent(
                 intent_type=IntentType.DESKTOP_ACTION,
                 action_type=ActionType.TAKE_PICTURE
+            )
+        
+        # Analyze scene (detailed)
+        if any(kw in text for kw in self.ANALYZE_SCENE_KEYWORDS):
+            return Intent(
+                intent_type=IntentType.DESKTOP_ACTION,
+                action_type=ActionType.ANALYZE_SCENE
+            )
+        
+        # What am I doing
+        if any(kw in text for kw in self.WHAT_DOING_KEYWORDS):
+            return Intent(
+                intent_type=IntentType.DESKTOP_ACTION,
+                action_type=ActionType.WHAT_AM_I_DOING
+            )
+        
+        # Get activity summary
+        if any(kw in text for kw in self.GET_ACTIVITY_KEYWORDS):
+            return Intent(
+                intent_type=IntentType.DESKTOP_ACTION,
+                action_type=ActionType.GET_ACTIVITY
             )
         
         return None

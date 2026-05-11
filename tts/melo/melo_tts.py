@@ -49,13 +49,14 @@ class MeloTTS:
             logger.error(f"Failed to initialize MeloTTS: {e}")
             raise
     
-    def speak(self, text: str, wait: bool = True) -> bool:
+    def speak(self, text: str, wait: bool = True, interrupt_flag=None) -> bool:
         """
         Speak text using MeloTTS.
         
         Args:
             text: Text to speak
             wait: Whether to wait for completion
+            interrupt_flag: Callable that returns True if interrupted
         
         Returns:
             True if successful
@@ -89,11 +90,32 @@ class MeloTTS:
             os.unlink(tmp_path)
             
             # Play audio
+            sd.play(audio, samplerate=sr)
+            
             if wait:
-                sd.play(audio, samplerate=sr)
-                sd.wait()
-            else:
-                sd.play(audio, samplerate=sr)
+                # Wait with interrupt checking
+                if interrupt_flag:
+                    # Check interrupt flag periodically (every 50ms)
+                    import time
+                    try:
+                        while True:
+                            if interrupt_flag():
+                                sd.stop()
+                                logger.info("Speech interrupted")
+                                return False
+                            # Check if playback is still active
+                            try:
+                                if not sd.get_stream().active:
+                                    break
+                            except:
+                                # Stream ended or error
+                                break
+                            time.sleep(0.05)
+                    except Exception as e:
+                        logger.debug(f"Interrupt check error: {e}")
+                        sd.stop()
+                else:
+                    sd.wait()
             
             return True
             

@@ -174,6 +174,54 @@ class ConversationHistory:
                 return msg.content
         return None
     
+    def get_recent_context(self, num_messages: int = 5) -> str:
+        """
+        Get recent conversation context as formatted string.
+        
+        Args:
+            num_messages: Number of recent messages to include (excluding system)
+        
+        Returns:
+            Formatted recent conversation
+        """
+        # Get non-system messages
+        non_system = [msg for msg in self.messages if msg.role != "system"]
+        recent = non_system[-num_messages:] if len(non_system) > num_messages else non_system
+        
+        if not recent:
+            return "No recent conversation."
+        
+        lines = []
+        for msg in recent:
+            role = "User" if msg.role == "user" else "Jheevis"
+            lines.append(f"{role}: {msg.content}")
+        
+        return "\n".join(lines)
+    
+    def has_context_about(self, keyword: str) -> bool:
+        """
+        Check if recent conversation mentions a keyword.
+        
+        Args:
+            keyword: Keyword to search for (case-insensitive)
+        
+        Returns:
+            True if keyword found in recent messages
+        """
+        recent = self.get_recent_context(num_messages=10)
+        return keyword.lower() in recent.lower()
+    
+    def get_conversation_count(self) -> int:
+        """
+        Get the number of user-assistant exchanges.
+        
+        Returns:
+            Number of exchanges (user+assistant pairs)
+        """
+        user_count = sum(1 for msg in self.messages if msg.role == "user")
+        assistant_count = sum(1 for msg in self.messages if msg.role == "assistant")
+        return min(user_count, assistant_count)
+    
     def __len__(self) -> int:
         """Get number of messages."""
         return len(self.messages)

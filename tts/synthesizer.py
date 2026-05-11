@@ -40,6 +40,8 @@ class TTSSynthesizer:
         self.rate = rate
         self.use_melo = use_melo
         self.melo_tts = None
+        self.current_process = None  # Track current TTS process for interruption
+        self.interrupted = False  # Flag to track interruption
         
         if use_melo:
             try:
@@ -76,23 +78,29 @@ class TTSSynthesizer:
         
         logger.info(f"Speaking: '{text[:50]}...'")
         
+        # Reset interrupt flag
+        self.interrupted = False
+        
         # Use MeloTTS if enabled
         if self.use_melo and self.melo_tts:
-            return self.melo_tts.speak(text, wait=wait)
+            return self.melo_tts.speak(text, wait=wait, interrupt_flag=lambda: self.interrupted)
         
         # Otherwise use macOS built-in
         try:
             cmd = ['say', '-v', self.voice, '-r', str(self.rate), text]
             
             if wait:
-                subprocess.run(cmd, check=True)
+                self.current_process = subprocess.Popen(cmd)
+                self.current_process.wait()
+                self.current_process = None
             else:
-                subprocess.Popen(cmd)
+                self.current_process = subprocess.Popen(cmd)
             
             return True
         
         except Exception as e:
             logger.error(f"TTS error: {e}")
+            self.current_process = None
             return False
     
     def speak_async(self, text: str) -> bool:
@@ -149,6 +157,41 @@ class TTSSynthesizer:
         except Exception as e:
             logger.error(f"Error listing voices: {e}")
             return []
+    
+    def stop(self) -> bool:
+        """
+        Stop any currently playing speech immediately.
+        
+        Returns:
+            True if successfully stopped
+        """
+        try:
+            # Set interrupt flag
+            self.interrupted = True
+            
+            # Stop MeloTTS if using it
+            if self.use_melo and self.melo_tts:
+                sd.stop()  # Stop sounddevice playback
+                logger.info("Stopped MeloTTS playback")
+            
+            # Stop macOS 'say' process
+            if self.current_process and self.current_process.poll() is None:
+                self.current_process.terminate()
+                try:
+                    self.current_process.wait(timeout=0.5)
+                except:
+                    self.current_process.kill()
+                self.current_process = None
+                logger.info("Stopped macOS TTS")
+            
+            # Also use killall as backup to force stop all 'say' processes
+            subprocess.run(['killall', 'say'], stderr=subprocess.DEVNULL)
+            
+            return True
+        
+        except Exception as e:
+            logger.error(f"Error stopping TTS: {e}")
+            return False
     
     def stop(self):
         """Stop current speech."""

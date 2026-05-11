@@ -185,6 +185,22 @@ class JheevisClient:
             
             logger.info(f"User said: '{text}'")
             
+            # Check for interrupt commands (highest priority)
+            interrupt_keywords = ["stop it", "stop jheevis", "jheevis stop", "stop that"]
+            if any(keyword in text.lower() for keyword in interrupt_keywords):
+                logger.info("🛑 Interrupt detected - stopping execution")
+                # Stop any ongoing TTS
+                self.tts.stop()
+                # Small delay to let audio system fully stop
+                import time
+                time.sleep(0.2)
+                # Quick response
+                self.speak("Oh, sorry sir.")
+                self.state = State.IDLE
+                if self.reactor_ui:
+                    self.reactor_ui.set_state('idle')
+                return
+            
             # Check for wake word if not awake
             if not self.is_awake:
                 if self.wake_word.detect(text):
@@ -231,6 +247,17 @@ class JheevisClient:
         Args:
             text: Transcribed user command
         """
+        # Check for interrupt commands (highest priority)
+        interrupt_keywords = ["stop it", "stop jheevis", "jheevis stop", "stop that", "ok stop", "please stop", "enough", "that's enough"]
+        if any(keyword in text.lower() for keyword in interrupt_keywords):
+            logger.info("🛑 Interrupt detected - stopping execution")
+            self.tts.stop()
+            # Small delay to let audio system fully stop
+            import time
+            time.sleep(0.2)
+            self.speak("Oh, sorry sir.")
+            return
+        
         # Check for exit commands
         if any(word in text.lower() for word in ["goodbye", "exit", "quit", "stop listening"]):
             self.speak("Goodbye!")
@@ -484,12 +511,38 @@ class JheevisClient:
             response = result.get('message', "I couldn't take a picture")
             success = result.get('success', False)
         
+        # Enhanced Vision Actions
+        elif action == ActionType.ANALYZE_SCENE:
+            result = self.executor.analyze_scene_detailed()
+            response = result.get('message', "I couldn't analyze the scene")
+            success = result.get('success', False)
+        
+        elif action == ActionType.WHAT_AM_I_DOING:
+            result = self.executor.what_do_you_see()
+            # Focus on activity in response
+            activity = result.get('activity', 'unknown')
+            if activity in ['working', 'eating', 'reading', 'phone_use']:
+                activity_name = activity.replace('_', ' ')
+                response = f"You appear to be {activity_name}, sir."
+            else:
+                response = result.get('description', "I couldn't determine your activity")
+            success = result.get('success', False)
+        
+        elif action == ActionType.GET_ACTIVITY:
+            result = self.executor.get_activity_summary()
+            response = result.get('message', "I don't have any activity history yet")
+            success = result.get('success', False)
+        
         # Speak response
         self.speak(response)
         
         # Add to history
         self.history.add_user_message(f"[Action: {action.value}]")
         self.history.add_assistant_message(response)
+        
+        # Offer proactive suggestion if enabled and action was successful
+        if success and config.ENABLE_PROACTIVE_SUGGESTIONS:
+            self._maybe_offer_suggestion(action, intent)
     
     def _handle_web_search(self, intent):
         """Handle web search."""
@@ -507,6 +560,84 @@ class JheevisClient:
         self.history.add_user_message(f"Search for: {query}")
         self.history.add_assistant_message(response)
     
+    def _maybe_offer_suggestion(self, action: ActionType, intent):
+        """
+        Offer proactive suggestions after completing an action.
+        
+        Args:
+            action: The action that was just completed
+            intent: The intent object with action details
+        """
+        import random
+        
+        # Only suggest sometimes (based on config)
+        if random.random() > config.PROACTIVE_SUGGESTION_CHANCE:
+            return
+        
+        # Define contextual suggestions based on action
+        suggestions = {
+            ActionType.GET_TIME: [
+                "Would you like me to check the weather as well, sir?",
+                "Shall I tell you today's date as well?"
+            ],
+            ActionType.GET_DATE: [
+                "Would you like to know the time as well, sir?",
+                "Shall I check the weather forecast?"
+            ],
+            ActionType.GET_WEATHER: [
+                "Would you like me to check the time as well?",
+                "Shall I tell you the current date?"
+            ],
+            ActionType.OPEN_APP: [
+                "Shall I maximize the window for you, sir?",
+                "Would you like me to move it to a specific position?"
+            ],
+            ActionType.VOLUME_UP: [
+                "Would you like me to adjust the brightness as well?",
+            ],
+            ActionType.VOLUME_DOWN: [
+                "Would you like me to adjust the brightness as well?",
+            ],
+            ActionType.SET_BRIGHTNESS: [
+                "Shall I adjust the volume as well, sir?",
+            ],
+            ActionType.WHAT_DO_YOU_SEE: [
+                "Would you like me to take a picture of this, sir?",
+                "Shall I count how many people are present?"
+            ],
+            ActionType.WHO_IS_HERE: [
+                "Would you like me to take a picture, sir?",
+            ],
+            ActionType.GET_TRASH_COUNT: [
+                "Shall I empty the trash for you, sir?",
+            ],
+            ActionType.FIND_FILE: [
+                "Would you like me to open it for you?",
+            ],
+            ActionType.OPEN_TERMINAL: [
+                "Would you like me to run a specific command, sir?",
+            ]
+        }
+        
+        # Get suggestions for this action
+        action_suggestions = suggestions.get(action, [])
+        
+        if action_suggestions:
+            # Pick a random suggestion
+            suggestion = random.choice(action_suggestions)
+            
+            # Small delay before speaking suggestion (feels more natural)
+            import time
+            time.sleep(0.3)
+            
+            # Speak the suggestion
+            self.speak(suggestion)
+            
+            # Add to history
+            self.history.add_assistant_message(suggestion)
+            
+            logger.debug(f"Offered proactive suggestion: {suggestion}")
+    
     def _handle_conversation(self, text: str):
         """Handle conversational interaction."""
         logger.info("Conversational response")
@@ -519,12 +650,20 @@ class JheevisClient:
         if config.ENABLE_SCREEN_UNDERSTANDING:
             screen_context = f"\n\nCurrent screen state: {self.screen.describe_screen()}"
         
+        # Get conversation count to inform LLM about context
+        exchange_count = self.history.get_conversation_count()
+        context_note = ""
+        if exchange_count > 0:
+            context_note = f"\n\n[Note: This is exchange #{exchange_count + 1} in an ongoing conversation. You have full context of previous messages.]"
+        
         # Generate response using LLM
         messages = self.history.get_messages()
         
-        # Add screen context to last message if available
-        if screen_context and messages:
-            messages[-1]["content"] += screen_context
+        # Add context notes to last message if available
+        if messages:
+            additional_context = context_note + screen_context
+            if additional_context:
+                messages[-1]["content"] += additional_context
         
         response = self.llm.chat_completion(messages)
         
